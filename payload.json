@@ -1,0 +1,13 @@
+{
+    "order_id": "ORD-DDLD2KCMSKLK-1755224214",
+    "status_code": "200",
+    "gross_amount": "150000.00",
+    "signature_key": "6f6749effe13f842c0e13b79736dd6b9e9081f9db3538476fed99fd8d3931d0434b1ad26a6f3ef737ea94f5f395b626bfaae089d24f270ac4513c5fb7c55dfbf",
+    "transaction_status": "settlement",
+    "payment_type": "bank_transfer",
+    "fraud_status": "accept",
+    "customer_details": {
+        "first_name": "Tester",
+        "email": "tester@example.com"
+    }
+}
