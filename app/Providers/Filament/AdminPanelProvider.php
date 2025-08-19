@@ -43,11 +43,6 @@ class AdminPanelProvider extends PanelProvider
                 ->icon('heroicon-o-qr-code')
                 ->group('Operasional')
                 ->sort(2),
-            NavigationItem::make('Telescope')
-                ->url(fn (): string => route('telescope'))
-                ->icon('heroicon-o-eye')
-                ->group('Monitoring')
-                ->sort(3),
             ])
             ->colors([
                 'primary' => Color::Blue,
