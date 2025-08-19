@@ -20,18 +20,21 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        $request->user()->createToken('scanner-token');
-
-        // -- LOGIKA BARU KITA MULAI DI SINI --
         $user = $request->user();
+        // HENTIKAN SEMUANYA DAN TAMPILKAN ROLE PENGGUNA SAAT INI
+        // dd($user->getRoleNames());
+        $url = ''; // Siapkan variabel URL
 
-        if ($user->role === 'admin') {
-            return redirect()->intended(route('admin.dashboard'));
+        // Tambahkan kondisi untuk role 'scanner'
+        if ($user->hasRole('admin')) {
+            $url = '/admin';
+        } elseif ($user->hasRole('scanner')) {
+            $url = '/scanner';
+        } else {
+            $url = route('events.index');
         }
 
-        // Untuk user biasa, arahkan ke halaman utama
-        return redirect()->intended(route('events.index'));
-        // -- LOGIKA BARU SELESAI --
+        return redirect($url);
     }
 
     /**
@@ -53,6 +56,6 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect('/login');
     }
 }

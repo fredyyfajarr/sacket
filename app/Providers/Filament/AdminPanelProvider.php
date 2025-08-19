@@ -37,15 +37,17 @@ class AdminPanelProvider extends PanelProvider
                 ->icon('heroicon-o-globe-alt')
                 ->group('Tautan')
                 ->sort(1),
-
-            // TAMBAHKAN KOMA DI SINI
-
             // Item kedua (yang baru)
             NavigationItem::make('Ticket Scanner')
-                ->url(fn (): string => route('admin.scanner.index'), shouldOpenInNewTab: true)
+                ->url(fn (): string => route('scanner.index'), shouldOpenInNewTab: true)
                 ->icon('heroicon-o-qr-code')
                 ->group('Operasional')
                 ->sort(2),
+            NavigationItem::make('Telescope')
+                ->url(fn (): string => route('telescope'))
+                ->icon('heroicon-o-eye')
+                ->group('Monitoring')
+                ->sort(3),
             ])
             ->colors([
                 'primary' => Color::Blue,

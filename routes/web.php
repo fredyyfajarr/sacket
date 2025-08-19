@@ -7,43 +7,71 @@ use App\Http\Controllers\TicketScannerController;
 use App\Http\Controllers\PromoCodeController;
 use App\Http\Controllers\Admin\EventController as AdminEventController;
 
-// Public routes
+
+Route::get('/admin/login', fn()=> redirect('/login'))->name('filament.admin.auth.login');
+/*
+|--------------------------------------------------------------------------
+| Rute Publik (Bisa diakses siapa saja)
+|--------------------------------------------------------------------------
+*/
 Route::get('/', [EventController::class, 'index'])->name('events.index');
 Route::get('/events/{event:slug}', [EventController::class, 'show'])->name('events.show');
 
-// Payment success route
-Route::get('/payment/success', [OrderController::class, 'success'])->name('orders.success');
-
-// Authenticated routes
+/*
+|--------------------------------------------------------------------------
+| Rute Autentikasi (Untuk semua pengguna yang sudah login)
+|--------------------------------------------------------------------------
+*/
 Route::middleware(['auth'])->group(function () {
-    // My tickets routes
+    // Rute "My Tickets"
     Route::get('/my-tickets', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/my-tickets/{order}', [OrderController::class, 'show'])->name('orders.show');
     Route::get('/my-tickets/{orderItem}/download', [OrderController::class, 'downloadTicket'])->name('orders.download');
 
-    // Payment initiation
+    // Rute Proses Pembayaran
     Route::post('/events/{event}/pay', [OrderController::class, 'initiatePayment'])->name('orders.pay');
+    Route::get('/payment/success', [OrderController::class, 'success'])->name('orders.success');
+
+    // Rute Validasi Kode Promo
+    Route::post('/promo-code/validate', [PromoCodeController::class, 'validateCode'])->name('promo.validate');
 });
 
-require __DIR__.'/auth.php';
-require __DIR__.'/profile.php';
 
-// Admin routes - ADD PROPER ADMIN MIDDLEWARE HERE
-Route::get('/admin/login', fn () => redirect('/login'))->name('filament.admin.auth.login');
-
+/*
+|--------------------------------------------------------------------------
+| Rute Khusus Admin (Hanya untuk role 'admin')
+|--------------------------------------------------------------------------
+*/
 Route::prefix('admin')
     ->name('admin.')
-    ->middleware(['auth', 'admin'])
+    ->middleware(['auth', 'role:admin']) // Hanya 'admin' yang boleh masuk ke sini
     ->group(function () {
-        Route::get('/dashboard', function () {
-            return redirect('/admin');
-        })->name('dashboard');
+        // Redirect dashboard ke halaman utama panel admin
+        Route::get('/dashboard', fn () => redirect('/admin'))->name('dashboard');
 
-        Route::get('/scanner', [TicketScannerController::class, 'index'])->name('scanner.index');
-
-        // TAMBAHKAN RUTE VERIFIKASI DI SINI
-        Route::post('/ticket/verify', [TicketScannerController::class, 'verify'])->name('ticket.verify');
+        // Catatan: Rute /admin/scanner dipindahkan keluar dari grup ini
     });
 
-// ... rute lainnya
-Route::post('/promo-code/validate', [PromoCodeController::class, 'validateCode'])->name('promo.validate');
+
+/*
+|--------------------------------------------------------------------------
+| Rute Khusus Scanner (Untuk role 'admin' DAN 'scanner')
+|--------------------------------------------------------------------------
+*/
+// Rute ini sengaja diletakkan di luar grup /admin agar bisa diakses dengan URL yang lebih sederhana
+Route::get('/scanner', [TicketScannerController::class, 'index'])
+    ->middleware(['auth', 'role:admin|scanner']) // Bisa diakses admin ATAU scanner
+    ->name('scanner.index');
+
+Route::post('/ticket/verify', [TicketScannerController::class, 'verify'])
+    ->middleware(['auth', 'role:admin|scanner']) // Bisa diakses admin ATAU scanner
+    ->name('ticket.verify');
+
+
+/*
+|--------------------------------------------------------------------------
+| File Rute Bawaan
+|--------------------------------------------------------------------------
+*/
+require __DIR__.'/auth.php';
+require __DIR__.'/profile.php'; // Biasanya sudah di-handle oleh auth.php atau layout

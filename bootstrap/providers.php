@@ -5,4 +5,5 @@ return [
     App\Providers\AuthServiceProvider::class,
     App\Providers\CurlServiceProvider::class,
     App\Providers\Filament\AdminPanelProvider::class,
+    App\Providers\TelescopeServiceProvider::class,
 ];

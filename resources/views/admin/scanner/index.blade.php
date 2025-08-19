@@ -47,7 +47,7 @@
 
             async function verifyTicket(uniqueCode) {
                 try {
-                    const response = await fetch("{{ route('admin.ticket.verify') }}", {
+                    const response = await fetch("{{ route('ticket.verify') }}", {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

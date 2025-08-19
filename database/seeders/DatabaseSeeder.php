@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
     {
         // Jalankan seeder User dan Event
         $this->call([
+            RoleSeeder::class,
             UserSeeder::class,
             EventSeeder::class,
         ]);

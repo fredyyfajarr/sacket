@@ -20,17 +20,32 @@ return Application::configure(basePath: dirname(__DIR__))
             '/api/midtrans-webhook',
         ]);
 
-        $middleware->alias([
-            'admin' => \App\Http\Middleware\IsAdmin::class,
-        ]);
+        // $middleware->alias([
+        //     'role' => \App\Http\Middleware\CheckRole::class,
+        // ]);
 
         $middleware->trustProxies(
             at: '*', // Atau bisa diatur sesuai kebutuhan
         );
 
+        $middleware->alias([
+            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+        ]);
+
+        $middleware->web(append: [
+        \App\Http\Middleware\RedirectScanner::class, // <-- TAMBAHKAN INI
+        ]);
+
         // Untuk Laravel 11, throttling diatur berbeda
         // Kita akan handle di route level jika perlu
     })
+
+    ->withProviders([
+        \App\Providers\AuthServiceProvider::class,
+        \App\Providers\TelescopeServiceProvider::class,
+    ])
+
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();

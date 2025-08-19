@@ -9,10 +9,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
-    use HasFactory, Notifiable, HasApiTokens;
+use HasFactory, Notifiable, HasApiTokens, HasRoles;
 
     protected $fillable = [
         'name',
@@ -39,7 +40,7 @@ class User extends Authenticatable implements MustVerifyEmail, FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         // Izinkan akses jika role user adalah 'admin'
-        return $this->role === 'admin';
+        return $this->hasRole('admin');
     }
 
     public function getInitialsAttribute(): string

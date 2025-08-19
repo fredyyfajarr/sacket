@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
 @section('title', $event->name)
+@section('description',
+    $event->description
+    ? Str::limit(strip_tags($event->description), 160)
+    : 'Beli tiket event musik
+    favoritmu dengan mudah dan aman di Sacket.')
 
 @section('content')
     <div class="bg-white rounded-lg shadow-xl overflow-hidden">
@@ -16,7 +21,7 @@
             </p>
             <p class="text-lg text-gray-600">Lokasi: {{ $event->location }}</p>
             <div class="prose max-w-none text-gray-700 mt-4">
-                {!! $event->description !!}
+                {!! nl2br(e($event->description)) !!}
             </div>
 
             <hr class="my-8">

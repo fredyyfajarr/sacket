@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'My Ticketing App')</title>
+    {{-- Deskripsi Dinamis untuk SEO --}}
+    <meta name="description" content="@yield('description', 'Beli tiket event musik favoritmu dengan mudah dan aman di Sacket.')">
+    <title>@yield('title', 'Sacket')</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css">
     @vite(['resources/css/app.css', 'resources/js/app.js'])

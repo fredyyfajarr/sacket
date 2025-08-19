@@ -16,6 +16,17 @@ class Event extends Model
         'end_date' => 'datetime',
     ];
 
+    /**
+     * Daftarkan koleksi media.
+     * Ini memberitahu package untuk hanya menerima satu file untuk koleksi ini.
+     */
+    public function registerMediaCollections(): void
+    {
+        $this
+            ->addMediaCollection('images')
+            ->singleFile();
+    }
+
     public function ticketCategories()
     {
         return $this->hasMany(TicketCategory::class);
