@@ -1,66 +1,94 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Sacket - Aplikasi Web Ticketing Event
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sacket adalah aplikasi web *full-stack* yang dibangun menggunakan Laravel 11 untuk penjualan tiket event. Aplikasi ini menyediakan platform yang lengkap bagi pengguna untuk menemukan dan membeli tiket, serta panel admin yang canggih bagi pengelola untuk mengatur event, penjualan, dan operasional.
 
-## About Laravel
+## Fitur Utama ✨
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Untuk Pengguna (Pembeli Tiket)
+* **Dashboard Event Modern:** Halaman utama dinamis dengan *carousel* event unggulan dan galeri event.
+* **Pencarian & Filter:** Kemampuan untuk mencari event berdasarkan nama atau lokasi.
+* **Alur Pemesanan Lengkap:** Pengguna dapat memilih kategori tiket, jumlah, dan menerapkan kode promo.
+* **Sistem Kode Promo:** Fungsionalitas diskon (potongan harga tetap atau persentase) yang divalidasi secara *real-time*.
+* **Integrasi Pembayaran:** Terhubung dengan Midtrans untuk berbagai metode pembayaran.
+* **Area "My Tickets":** Halaman khusus bagi pengguna untuk melihat riwayat pesanan dan status pembayaran.
+* **Download E-Ticket:** Pengguna dapat mengunduh tiket PDF yang berisi QR Code unik.
+* **Sistem Autentikasi Modern:** Halaman *login* dan *register* yang bersih, serta *navbar* dengan menu avatar pengguna.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### Untuk Admin & Panitia
+* **Panel Admin Canggih (Filament):** *Dashboard* terpusat yang aman untuk mengelola seluruh aplikasi.
+* **Dashboard Statistik:** Menampilkan ringkasan pendapatan, jumlah tiket terjual, dan event aktif.
+* **Manajemen Event (CRUD):** Kemampuan penuh untuk membuat, mengedit, dan menghapus data event, termasuk *upload* gambar.
+* **Manajemen Kategori Tiket (CRUD):** Mengelola jenis tiket (VIP, Presale, dll.) untuk setiap event.
+* **Manajemen Kode Promo (CRUD):** Mengelola sistem diskon.
+* **Melihat Daftar Pesanan:** Memantau semua transaksi yang masuk.
+* **Sistem Check-in Tiket:** Halaman `/scanner` khusus untuk memvalidasi tiket di hari-H menggunakan kamera.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Keamanan & Role
+* **Hak Akses Berbasis Peran:** Sistem dibagi menjadi tiga peran: `admin`, `scanner`, dan `user`.
+* **Middleware Fleksibel:** Rute dilindungi berdasarkan peran pengguna. Admin memiliki akses penuh, sementara *scanner* hanya bisa mengakses halaman *scanner* dan profil.
+* **Keamanan Terpusat:** Menggunakan *package* `spatie/laravel-permission` untuk manajemen *role* yang profesional.
 
-## Learning Laravel
+---
+## Teknologi yang Digunakan 💻
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+* **Backend:** Laravel 11
+* **Frontend:** Blade, Tailwind CSS, Alpine.js
+* **Panel Admin:** Filament 3
+* **Database:** MySQL / PostgreSQL
+* **Pembayaran:** Midtrans
+* **Lainnya:** `spatie/laravel-permission`, `barryvdh/laravel-dompdf`, `simplesoftwareio/simple-qrcode`
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+---
+## Panduan Instalasi Lokal
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1.  **Clone repositori:**
+    ```bash
+    git clone [https://github.com/NAMA_ANDA/ticketing-project.git](https://github.com/NAMA_ANDA/ticketing-project.git)
+    cd ticketing-project
+    ```
+2.  **Install dependensi:**
+    ```bash
+    composer install
+    npm install
+    ```
+3.  **Buat file `.env`:**
+    ```bash
+    cp .env.example .env
+    ```
+4.  **Generate `APP_KEY`:**
+    ```bash
+    php artisan key:generate
+    ```
+5.  **Konfigurasi `.env`:** Atur koneksi database (`DB_*`), kredensial Midtrans, dan Mailtrap.
+6.  **Jalankan Migrasi & Seeder:**
+    ```bash
+    php artisan migrate:fresh --seed
+    ```
+7.  **Buat *Symbolic Link* untuk Storage:**
+    ```bash
+    php artisan storage:link
+    ```
+8.  **Jalankan Aplikasi:**
+    ```bash
+    # Jalankan server development
+    php artisan serve
+    # Jalankan server Vite untuk aset frontend
+    npm run dev
+    # (Opsional) Jalankan queue worker jika email diaktifkan
+    # php artisan queue:work
+    ```
 
-## Laravel Sponsors
+---
+## Kredensial Default
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Setelah menjalankan *seeder*, Anda bisa login menggunakan akun berikut:
 
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+* **Admin:**
+    * **Email:** `admin@example.com`
+    * **Password:** `password`
+* **Scanner:**
+    * **Email:** `scanner@example.com`
+    * **Password:** `password`
+* **User Biasa:**
+    * **Email:** `user@example.com`
+    * **Password:** `password`
