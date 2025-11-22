@@ -11,6 +11,7 @@
         <form method="POST" action="{{ route('login') }}" class="space-y-4">
             @csrf
 
+            {{-- Input Email --}}
             <div>
                 <x-input-label for="email" value="Email" class="sr-only" />
                 <x-text-input id="email"
@@ -20,6 +21,7 @@
                 <x-input-error :messages="$errors->get('email')" class="mt-2 text-sm text-red-600" />
             </div>
 
+            {{-- Input Password --}}
             <div class="mt-4">
                 <x-input-label for="password" value="Password" class="sr-only" />
                 <x-text-input id="password"
@@ -28,21 +30,9 @@
                 <x-input-error :messages="$errors->get('password')" class="mt-2 text-sm text-red-600" />
             </div>
 
-            <div class="flex items-center justify-between">
-                <label for="remember_me" class="inline-flex items-center">
-                    <input id="remember_me" type="checkbox"
-                        class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500" name="remember">
-                    <span class="ms-2 text-sm text-gray-500">Ingat saya</span>
-                </label>
+            {{-- BAGIAN REMEMBER ME & FORGOT PASSWORD SUDAH DIHAPUS DI SINI --}}
 
-                @if (Route::has('password.request'))
-                    <a class="text-sm text-blue-500 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md"
-                        href="{{ route('password.request') }}">
-                        Lupa password?
-                    </a>
-                @endif
-            </div>
-
+            {{-- Tombol Masuk --}}
             <div class="mt-6">
                 <x-primary-button
                     class="w-full py-3 text-white bg-blue-600 hover:bg-blue-700 focus:ring-blue-500 rounded-md shadow-sm">
@@ -50,6 +40,7 @@
                 </x-primary-button>
             </div>
 
+            {{-- Link Daftar --}}
             <div class="mt-4 text-center text-sm text-gray-500">
                 Belum punya akun?
                 <a href="{{ route('register') }}" class="font-medium text-blue-500 hover:underline">

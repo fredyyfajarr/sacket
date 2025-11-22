@@ -9,17 +9,32 @@ class Event extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'slug', 'description', 'location', 'start_date', 'end_date', 'image'];
+    protected $fillable = [
+        'name',
+        'slug',
+        'description',
+        'location',
+        'start_date',
+        'end_date',
+        'image',
+        'is_published' // <--- DITAMBAHKAN
+    ];
 
     protected $casts = [
         'start_date' => 'datetime',
         'end_date' => 'datetime',
+        'is_published' => 'boolean', // <--- DITAMBAHKAN
     ];
 
     /**
-     * Daftarkan koleksi media.
-     * Ini memberitahu package untuk hanya menerima satu file untuk koleksi ini.
+     * Scope Helper: Hanya ambil event yang sudah dipublish.
+     * Cara pakainya: Event::published()->get();
      */
+    public function scopePublished($query)
+    {
+        return $query->where('is_published', true);
+    }
+
     public function registerMediaCollections(): void
     {
         $this

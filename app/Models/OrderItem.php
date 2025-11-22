@@ -9,7 +9,19 @@ class OrderItem extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['order_id', 'ticket_category_id', 'quantity', 'price', 'unique_code'];
+    protected $fillable = [
+        'order_id',
+        'ticket_category_id',
+        'quantity',
+        'price',
+        'unique_code',
+        'checked_in_at' // Pastikan ini juga ada di fillable jika belum
+    ];
+
+    // TAMBAHKAN BAGIAN INI
+    protected $casts = [
+        'checked_in_at' => 'datetime',
+    ];
 
     public function order()
     {
