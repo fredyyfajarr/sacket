@@ -27,7 +27,6 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        // Authorization check
         if (Auth::id() !== $order->user_id) {
             abort(403, 'Unauthorized access to order');
         }
@@ -42,7 +41,6 @@ class OrderController extends Controller
             abort(403, 'Unauthorized access to ticket');
         }
 
-        // Check if order is paid
         if ($orderItem->order->status !== 'paid') {
             return back()->withErrors('Tiket hanya bisa didownload setelah pembayaran berhasil.');
         }
@@ -51,7 +49,7 @@ class OrderController extends Controller
         return $pdf->download('ticket-' . $orderItem->unique_code . '.pdf');
     }
 
-        public function initiatePayment(Request $request, Event $event)
+    public function initiatePayment(Request $request, Event $event)
     {
         $validated = $request->validate([
             'customer_name' => 'required|string|max:255',
@@ -121,7 +119,7 @@ class OrderController extends Controller
                         'id'       => $ticketCategory->id,
                         'price'    => $ticketCategory->price,
                         'quantity' => $validated['quantity'],
-                        'name'     => $ticketCategory->name . ' - ' . $event->name,
+                        'name'     => substr($ticketCategory->name . ' - ' . $event->name, 0, 50), // Limit name length for Midtrans
                     ]
                 ];
 
@@ -134,6 +132,13 @@ class OrderController extends Controller
                     ];
                 }
 
+                // [FIX] Encode data penting ke custom_field3 agar webhook lebih akurat
+                $ticketData = json_encode([
+                    'ticket_category_id' => $ticketCategory->id,
+                    'quantity'           => $validated['quantity'],
+                    'unit_price'         => (int) $ticketCategory->price
+                ]);
+
                 $params = [
                     'transaction_details' => [
                         'order_id'     => $orderId,
@@ -144,10 +149,11 @@ class OrderController extends Controller
                         'email'      => $validated['customer_email'],
                     ],
                     'item_details' => $itemDetails,
+                    // Kirim data user_id dan event_id jika diperlukan untuk auto-create (fallback)
+                    'custom_field1' => Auth::id(),
+                    'custom_field2' => $event->id,
+                    'custom_field3' => $ticketData, // Data tiket tersimpan di sini
                     'callbacks' => [
-                        // ===============================================
-                        // PERBAIKAN REDIRECT ADA DI SINI
-                        // ===============================================
                         'finish' => route('orders.success', ['order_id' => $orderId]),
                     ],
                 ];
@@ -161,7 +167,7 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Order creation failed', ['error' => $e->getMessage()]);
-            return back()->withErrors('Gagal membuat transaksi. Silakan coba lagi.');
+            return back()->withErrors('Gagal membuat transaksi: ' . $e->getMessage());
         }
     }
 
@@ -177,28 +183,22 @@ class OrderController extends Controller
         $order = Order::where('order_number', $orderNumber)->first();
 
         if (!$order) {
+            // Handle case where order might be delayed
             return redirect()->route('events.index')
-                ->withErrors('Order tidak ditemukan.');
+                ->withErrors('Order belum ditemukan, mohon cek email Anda beberapa saat lagi.');
         }
 
-        // Authorization check
         if (Auth::id() !== $order->user_id) {
             abort(403, 'Unauthorized access to order');
         }
 
-        // Load relationships for display
         $order->load(['event', 'items.ticketCategory']);
-
-        // PRODUCTION: Remove detailed logging, keep only important ones
-        if ($order->status === 'pending') {
-            Log::warning('Order pending on success page', ['order_number' => $orderNumber]);
-        }
 
         return view('orders.success', [
             'order' => $order,
             'order_id' => $orderNumber,
             'status' => $order->status,
-            'warning' => $order->status === 'pending' ? 'Pembayaran sedang diproses, mohon tunggu konfirmasi.' : null
+            'warning' => $order->status === 'pending' ? 'Pembayaran sedang diproses sistem, status akan berubah otomatis sebentar lagi.' : null
         ]);
     }
 }

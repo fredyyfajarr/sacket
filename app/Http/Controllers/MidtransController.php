@@ -17,221 +17,173 @@ class MidtransController extends Controller
 {
     public function handle(Request $request)
     {
-        // PRODUCTION: Keep basic webhook logging for monitoring
         Log::info('Midtrans webhook received', [
             'order_id' => $request->input('order_id'),
-            'transaction_status' => $request->input('transaction_status'),
-            'ip' => $request->ip()
+            'status' => $request->input('transaction_status'),
         ]);
 
-        // 1) Konfigurasi Midtrans
         Config::$isProduction = (bool) config('midtrans.is_production');
         Config::$serverKey    = (string) config('midtrans.server_key');
 
-        // 2) Ambil payload
         $payload = $request->all();
+        $orderId = $payload['order_id'] ?? null;
+        $statusCode = $payload['status_code'] ?? null;
+        $grossAmount = $payload['gross_amount'] ?? null;
+        $signatureKey = $payload['signature_key'] ?? null;
 
-        // 3) Basic validation
-        $requiredFields = ['order_id','transaction_status','status_code','gross_amount','signature_key'];
-        foreach ($requiredFields as $field) {
-            if (!isset($payload[$field])) {
-                Log::error('Webhook missing field: ' . $field, ['order_id' => $payload['order_id'] ?? 'unknown']);
-                return response()->json(['message' => 'Bad Request'], 400);
+        if (!$orderId || !$statusCode || !$grossAmount || !$signatureKey) {
+            return response()->json(['message' => 'Invalid payload'], 400);
+        }
+
+        // Validasi Signature
+        $expectedSignature = hash('sha512', $orderId . $statusCode . $grossAmount . Config::$serverKey);
+        if ($signatureKey !== $expectedSignature) {
+            Log::error('Invalid signature detected', ['order_id' => $orderId]);
+            return response()->json(['message' => 'Invalid signature'], 403);
+        }
+
+        $transactionStatus = $payload['transaction_status'];
+        $paymentType = $payload['payment_type'] ?? '';
+        $fraudStatus = $payload['fraud_status'] ?? '';
+
+        // Tentukan status baru
+        $newStatus = null;
+        if ($transactionStatus == 'capture') {
+            if ($paymentType == 'credit_card') {
+                $newStatus = ($fraudStatus == 'challenge') ? 'pending' : 'paid';
             }
+        } elseif ($transactionStatus == 'settlement') {
+            $newStatus = 'paid';
+        } elseif ($transactionStatus == 'pending') {
+            $newStatus = 'pending';
+        } elseif ($transactionStatus == 'deny' || $transactionStatus == 'expire' || $transactionStatus == 'cancel') {
+            $newStatus = 'canceled';
         }
 
-        $orderId          = (string) $payload['order_id'];
-        $transactionStatus= (string) $payload['transaction_status'];
-        $statusCode       = (string) $payload['status_code'];
-        $grossAmountStr   = (string) $payload['gross_amount'];
-        $signatureKey     = (string) $payload['signature_key'];
-        $paymentType      = (string) ($payload['payment_type'] ?? '');
-        $fraudStatus      = (string) ($payload['fraud_status'] ?? '');
-
-        // 4) Signature validation
-        $expected = hash('sha512', $orderId.$statusCode.$grossAmountStr.Config::$serverKey);
-
-        if (Config::$isProduction && !hash_equals($expected, $signatureKey)) {
-            Log::error('Invalid signature', ['order_id' => $orderId]);
-            return response()->json(['message' => 'Forbidden'], 403);
+        if (!$newStatus) {
+            return response()->json(['message' => 'Status not mapped'], 200);
         }
-
-        // 5) Status mapping
-        $newStatus = match ($transactionStatus) {
-            'settlement' => 'paid',
-            'capture' => ($paymentType === 'credit_card' && $fraudStatus === 'challenge') ? 'pending' : 'paid',
-            'pending' => 'pending',
-            'cancel', 'expire', 'deny', 'failure' => 'canceled',
-            default => 'pending',
-        };
 
         try {
-            return DB::transaction(function () use ($orderId, $newStatus, $payload, $grossAmountStr) {
-
-                $order = Order::where('order_number', $orderId)
-                    ->lockForUpdate()
-                    ->first();
+            // Gunakan transaction agar status update & create items atomik
+            DB::transaction(function () use ($orderId, $newStatus, $payload) {
+                // Lock record untuk mencegah race condition
+                $order = Order::where('order_number', $orderId)->lockForUpdate()->first();
 
                 if (!$order) {
-                    // Auto-create order if needed
-                    $userId  = (int) ($payload['custom_field1'] ?? 0);
-                    $eventId = (int) ($payload['custom_field2'] ?? 0);
-                    $cust    = $payload['customer_details'] ?? ['first_name' => '', 'email' => ''];
+                    Log::error('Order not found for webhook', ['order_id' => $orderId]);
+                    return;
+                }
 
-                    if (!$userId || !$eventId) {
-                        Log::error('Cannot auto-create order', ['order_id' => $orderId]);
-                        return response()->json(['message' => 'Order not found'], 404);
+                // Jika status sudah final (paid/canceled), abaikan update selanjutnya kecuali jika perlu
+                if (in_array($order->status, ['paid', 'canceled'])) {
+                    return;
+                }
+
+                // Update status order
+                $order->update(['status' => $newStatus]);
+                Log::info("Order {$orderId} status updated to {$newStatus}");
+
+                // Jika status PAID, buat Order Items (tiket) & kurangi stok
+                if ($newStatus === 'paid') {
+                    // Cek apakah items sudah ada agar tidak duplikat
+                    if ($order->items()->doesntExist()) {
+                        $this->createOrderItems($order, $payload);
                     }
 
-                    $order = Order::create([
-                        'user_id'       => $userId,
-                        'event_id'      => $eventId,
-                        'order_number'  => $orderId,
-                        'customer_name' => $cust['first_name'] ?? '',
-                        'customer_email'=> $cust['email'] ?? '',
-                        'total_price'   => (int) round((float) $grossAmountStr),
-                        'status'        => 'pending',
-                    ]);
+                    // [FIX] Kirim email dalam blok try-catch terpisah
+                    // Jika email gagal, jangan rollback transaksi DB (status tetap paid)
+                    try {
+                        // Reload order untuk memastikan relasi terambil jika diperlukan di email
+                        $order->load('items.ticketCategory', 'event');
 
-                    Log::info('Order auto-created', ['order_id' => $order->id]);
-                }
-
-                // Update status
-                if ($order->status !== $newStatus) {
-                    $order->update(['status' => $newStatus]);
-                    Log::info('Order status updated', [
-                        'order_id' => $order->id,
-                        'status' => $newStatus
-                    ]);
-                }
-
-                // Create items for paid orders
-                if ($newStatus === 'paid' && $order->items()->count() === 0) {
-                    $this->createOrderItems($order, $payload);
-                    $order->load('items.ticketCategory', 'event');
-
-                    // Kirim email
-                    // try {
                         Mail::to($order->customer_email)->send(new TicketPurchased($order));
-                        Log::info('Ticket email successfully sent.', ['order_id' => $orderId]);
-                    // } catch (\Exception $e) {
-                    //     Log::error('Failed to send ticket email.', [
-                    //         'order_id' => $orderId,
-                    //         'error' => $e->getMessage()
-                    //     ]);
-                    // }
+                        Log::info('Email tiket terkirim.', ['email' => $order->customer_email]);
+                    } catch (\Exception $e) {
+                        Log::error('Gagal mengirim email tiket.', [
+                            'order_id' => $orderId,
+                            'error' => $e->getMessage()
+                        ]);
+                        // Disini kita biarkan saja, user masih bisa download tiket dari dashboard
+                    }
                 }
-
-                return response()->json([
-                    'message' => 'OK',
-                    'order_id' => $orderId,
-                    'status' => $newStatus
-                ], 200);
             });
 
-        } catch (\Throwable $e) {
-            Log::error('Webhook processing failed', [
-                'order_id' => $orderId,
-                'error' => $e->getMessage()
-            ]);
+            return response()->json(['message' => 'OK']);
 
-            return response()->json(['message' => 'Error'], 500);
+        } catch (\Exception $e) {
+            Log::error('Midtrans webhook error', ['error' => $e->getMessage()]);
+            return response()->json(['message' => 'Internal Server Error'], 500);
         }
     }
 
-    private function createOrderItems(Order $order, array $payload): void
+    private function createOrderItems(Order $order, array $payload)
     {
-        // Parse ticket info from custom_field3
-        $tcId = null;
-        $qty = null;
-        $unitPrice = null;
+        $ticketCategoryId = null;
+        $quantity = 0;
+        $unitPrice = 0;
 
+        // Prioritas 1: Ambil dari custom_field3 (format JSON yang kita buat di OrderController)
         if (!empty($payload['custom_field3'])) {
-            $parsed = json_decode((string) $payload['custom_field3'], true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($parsed)) {
-                $tcId      = (int) ($parsed['ticket_category_id'] ?? 0);
-                $qty       = (int) ($parsed['quantity'] ?? 0);
-                $unitPrice = (int) ($parsed['unit_price'] ?? 0);
+            $data = json_decode($payload['custom_field3'], true);
+            if (is_array($data)) {
+                $ticketCategoryId = $data['ticket_category_id'] ?? null;
+                $quantity = $data['quantity'] ?? 0;
+                $unitPrice = $data['unit_price'] ?? 0;
             }
         }
 
-        // Fallback: parse from item_details
-        if ((!$tcId || !$qty) && !empty($payload['item_details']) && is_array($payload['item_details'])) {
-            $first = $payload['item_details'][0] ?? null;
-            if ($first && isset($first['id'],$first['quantity'],$first['price'])) {
-                $tcId      = (int) $first['id'];
-                $qty       = (int) $first['quantity'];
-                $unitPrice = (int) $first['price'];
+        // Prioritas 2 (Fallback): Ambil dari item_details Midtrans
+        if ((!$ticketCategoryId || !$quantity) && !empty($payload['item_details'])) {
+            // Logika ini beresiko jika item_details kosong atau format beda, tapi sebagai cadangan ok
+            foreach ($payload['item_details'] as $item) {
+                // Lewati item diskon/promo
+                if (str_starts_with($item['id'], 'PROMO-')) continue;
+
+                $ticketCategoryId = (int) $item['id'];
+                $quantity = (int) $item['quantity'];
+                $unitPrice = (int) $item['price'];
+                break; // Asumsi 1 jenis tiket per transaksi
             }
         }
 
-        // Last fallback: use first category
-        if (!$tcId || !$qty) {
-            $ticketCategory = $order->event?->ticketCategories()->first();
-            if ($ticketCategory) {
-                $tcId = $ticketCategory->id;
-                $calcQty = (int) floor(((int) $order->total_price) / (int) $ticketCategory->price);
-                $qty = max($calcQty, 1);
-                $unitPrice = (int) $ticketCategory->price;
-
-                Log::warning('Using fallback ticket category', [
-                    'order_id' => $order->id,
-                    'tc_id' => $tcId,
-                    'qty' => $qty
-                ]);
-            }
-        }
-
-        if (!$tcId || !$qty) {
-            Log::error('Cannot determine ticket info for items', ['order_id' => $order->id]);
+        if (!$ticketCategoryId || !$quantity) {
+            Log::error('Gagal mengekstrak info tiket dari payload', ['order_id' => $order->order_number]);
             return;
         }
 
-        $ticketCategory = TicketCategory::find($tcId);
+        $ticketCategory = TicketCategory::find($ticketCategoryId);
+
         if (!$ticketCategory) {
-            Log::error('Ticket category not found', ['tc_id' => $tcId]);
+            Log::error('Kategori tiket tidak ditemukan saat webhook', ['id' => $ticketCategoryId]);
             return;
         }
 
-        // Adjust quantity if insufficient stock
-        if ($ticketCategory->stock < $qty) {
-            $qty = max($ticketCategory->stock, 0);
+        // Kurangi Stok
+        if ($ticketCategory->stock < $quantity) {
+            Log::warning('Stok habis saat pembayaran dikonfirmasi (Oversold risk)', ['order_id' => $order->id]);
+            // Tetap lanjutkan atau batalkan? Biasanya tetap lanjut jika sudah bayar,
+            // tapi set stok jadi 0 atau minus untuk ditangani admin.
+            $ticketCategory->decrement('stock', $quantity);
+        } else {
+            $ticketCategory->decrement('stock', $quantity);
         }
 
-        if ($qty <= 0) {
-            Log::error('No stock available', ['order_id' => $order->id]);
-            return;
-        }
-
-        try {
-            // Decrement stock
-            $ticketCategory->decrement('stock', $qty);
-
-            // Create individual items
-            for ($i = 0; $i < $qty; $i++) {
-                OrderItem::create([
-                    'order_id'           => $order->id,
-                    'ticket_category_id' => $ticketCategory->id,
-                    'price'              => $unitPrice ?? $ticketCategory->price,
-                    'quantity'           => 1,
-                    'unique_code'        => strtoupper(Str::random(8)) . '-' . $order->id . '-' . ($i + 1),
-                ]);
-            }
-
-            Log::info('Order items created', [
+        // Buat item tiket individual
+        $itemsData = [];
+        for ($i = 0; $i < $quantity; $i++) {
+            $itemsData[] = [
                 'order_id' => $order->id,
-                'quantity' => $qty
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to create order items', [
-                'order_id' => $order->id,
-                'error' => $e->getMessage()
-            ]);
-
-            // Rollback stock
-            $ticketCategory->increment('stock', $qty);
-            throw $e;
+                'ticket_category_id' => $ticketCategory->id,
+                'quantity' => 1, // 1 row per 1 tiket fisik (untuk QR code unik)
+                'price' => $unitPrice,
+                'unique_code' => strtoupper(Str::random(10)),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
         }
+
+        OrderItem::insert($itemsData);
+        Log::info("Berhasil membuat {$quantity} tiket untuk Order {$order->order_number}");
     }
 }
