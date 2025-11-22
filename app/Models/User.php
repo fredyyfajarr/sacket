@@ -10,7 +10,7 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
-
+// test
 class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
 use HasFactory, Notifiable, HasApiTokens, HasRoles;
