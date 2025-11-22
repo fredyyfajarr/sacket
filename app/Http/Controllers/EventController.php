@@ -4,52 +4,74 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
-use Illuminate\Contracts\View\View; // <-- TAMBAHKAN BARIS INI
+use Illuminate\View\View;
 
 class EventController extends Controller
 {
     /**
-     * Menampilkan daftar semua event yang akan datang.
+     * Menampilkan daftar event dengan fitur Filter & Live Search.
      */
-     public function index(Request $request): View // <-- 2. Tambahkan Request $request
+    public function index(Request $request)
     {
-        // Ambil 3 event "terpopuler" (tidak terpengaruh oleh filter)
+        // 1. Logic Banner (Event Populer) - Tidak terpengaruh filter
         $popularEvents = Event::with('ticketCategories')
             ->where('start_date', '>=', now())
-            ->latest()
+            ->withCount('orders')
+            ->orderByDesc('orders_count')
             ->take(3)
             ->get();
 
-        // Siapkan query dasar untuk event lainnya
+        // 2. Query Dasar
         $query = Event::query()->with('ticketCategories')->where('start_date', '>=', now());
 
-        // 3. Tambahkan logika PENCARIAN
+        // --- FILTER LOGIC ---
+
+        // Filter: Search (Nama & Lokasi)
         $query->when($request->search, function ($q, $search) {
-            return $q->where('name', 'like', "%{$search}%")
-                     ->orWhere('location', 'like', "%{$search}%");
+            return $q->where(function($sub) use ($search) {
+                $sub->where('name', 'like', "%{$search}%")
+                    ->orWhere('location', 'like', "%{$search}%");
+            });
         });
 
-        // 4. Tambahkan logika FILTER LOKASI
-        $query->when($request->location, function ($q, $location) {
-            return $q->where('location', $location);
+        // Filter: Lokasi Spesifik
+        $query->when($request->location, fn($q, $loc) => $q->where('location', $loc));
+
+        // Filter: Harga Maksimal (Budget)
+        $query->when($request->price_max, function ($q, $price) {
+            $q->whereHas('ticketCategories', function ($subQ) use ($price) {
+                $subQ->where('price', '<=', $price);
+            });
         });
 
-        // Eksekusi query dengan paginasi
-        // withQueryString() penting agar filter tetap aktif saat pindah halaman
-        $events = $query->latest()->paginate(9)->withQueryString();
+        // Filter: Sorting
+        if ($request->sort === 'cheapest') {
+            $query->withMin('ticketCategories', 'price')
+                  ->orderBy('ticket_categories_min_price', 'asc');
+        } elseif ($request->sort === 'soonest') {
+            $query->orderBy('start_date', 'asc');
+        } else {
+            $query->latest(); // Default: Terbaru diupload
+        }
 
-        // Ambil semua lokasi unik untuk ditampilkan di dropdown filter
-        $locations = Event::where('start_date', '>=', now())->select('location')->distinct()->pluck('location');
+        // Eksekusi Pagination
+        $events = $query->paginate(9)->withQueryString();
 
-        // Kirim semua variabel yang dibutuhkan ke view
+        // --- AJAX RESPONSE ---
+        // Jika request datang dari Javascript (Live Search), kembalikan hanya potongannya
+        if ($request->ajax()) {
+            return view('events.partials.list', compact('events'))->render();
+        }
+
+        // Data untuk Dropdown Lokasi
+        $locations = Event::where('start_date', '>=', now())
+                        ->select('location')
+                        ->distinct()
+                        ->pluck('location');
+
         return view('events.index', compact('popularEvents', 'events', 'locations'));
     }
 
-    /**
-     * Menampilkan detail spesifik dari sebuah event.
-     * Route Model Binding akan otomatis mencari event berdasarkan slug.
-     */
     public function show(Event $event)
     {
         return view('events.show', compact('event'));
