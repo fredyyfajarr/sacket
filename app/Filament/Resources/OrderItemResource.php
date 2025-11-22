@@ -10,12 +10,13 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Filament\Notifications\Notification; // Import Notification
 
 class OrderItemResource extends Resource
 {
     protected static ?string $model = OrderItem::class;
 
-    // Ganti Label Menu jadi "Tiket Peserta"
+    // Label & Ikon Menu
     protected static ?string $navigationLabel = 'Tiket Peserta';
     protected static ?string $pluralModelLabel = 'Tiket Peserta';
     protected static ?string $navigationIcon = 'heroicon-o-ticket';
@@ -26,7 +27,7 @@ class OrderItemResource extends Resource
     {
         return $form
             ->schema([
-                // Form hanya Read-Only karena data tiket digenerate otomatis
+                // Form Read-Only untuk melihat detail tiket
                 Forms\Components\TextInput::make('unique_code')
                     ->label('Kode Unik')
                     ->readOnly(),
@@ -45,7 +46,7 @@ class OrderItemResource extends Resource
             ]);
     }
 
-   public static function table(Table $table): Table
+    public static function table(Table $table): Table
     {
         return $table
             ->columns([
@@ -62,55 +63,77 @@ class OrderItemResource extends Resource
                     ->sortable()
                     ->searchable(),
 
+                // 3. Kategori
                 Tables\Columns\TextColumn::make('ticketCategory.name')
                     ->label('Kategori')
                     ->badge()
                     ->color('info'),
 
-                // 3. Nama Pemilik
+                // 4. Nama Pemilik
                 Tables\Columns\TextColumn::make('order.customer_name')
                     ->label('Pemilik')
                     ->searchable(),
 
-                // 4. Status Check-in (PERBAIKAN DI SINI)
-                // Kita beri nama 'status_check' agar tidak bentrok, tapi datanya ambil dari 'checked_in_at'
+                // 5. Status Check-in (Logika sudah diperbaiki)
                 Tables\Columns\TextColumn::make('status_check')
                     ->label('Status')
-                    ->state(fn ($record) => $record->checked_in_at) // <-- Ambil data dari sini
+                    ->state(fn ($record) => $record->checked_in_at) // Ambil data dari checked_in_at
                     ->formatStateUsing(fn ($state) => $state ? 'Sudah Masuk' : 'Belum Masuk')
                     ->badge()
                     ->color(fn ($state) => $state ? 'success' : 'gray')
                     ->icon(fn ($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-clock'),
 
-                // 5. Waktu Scan (Tetap gunakan nama asli kolom database)
+                // 6. Waktu Scan Real
                 Tables\Columns\TextColumn::make('checked_in_at')
                     ->label('Waktu Scan')
                     ->dateTime('d M Y, H:i')
                     ->placeholder('-')
                     ->sortable(),
             ])
-            // ... filters dan actions tetap sama ...
             ->filters([
+                // Filter Status Kehadiran
                 Tables\Filters\Filter::make('checked_in')
                     ->label('Sudah Check-in')
                     ->query(fn (Builder $query) => $query->whereNotNull('checked_in_at')),
+
                 Tables\Filters\Filter::make('not_checked_in')
                     ->label('Belum Masuk')
                     ->query(fn (Builder $query) => $query->whereNull('checked_in_at')),
             ])
-            ->actions([])
-            ->bulkActions([]);
+            ->actions([
+                // ACTION BARU: Manual Check-in / Batal Masuk
+                Tables\Actions\Action::make('toggle_checkin')
+                    ->label(fn ($record) => $record->checked_in_at ? 'Batal' : 'Check-in')
+                    ->icon(fn ($record) => $record->checked_in_at ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+                    ->color(fn ($record) => $record->checked_in_at ? 'danger' : 'success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Konfirmasi Check-in Manual')
+                    ->modalDescription('Ubah status kehadiran tiket ini secara manual?')
+                    ->action(function (OrderItem $record) {
+                        if ($record->checked_in_at) {
+                            // Jika sudah masuk -> batalkan (set null)
+                            $record->update(['checked_in_at' => null]);
+                            Notification::make()->title('Status check-in dibatalkan')->warning()->send();
+                        } else {
+                            // Jika belum masuk -> set waktu sekarang
+                            $record->update(['checked_in_at' => now()]);
+                            Notification::make()->title('Berhasil check-in manual')->success()->send();
+                        }
+                    }),
+            ])
+            ->bulkActions([
+                // Kosongkan bulk actions agar aman
+            ]);
     }
 
     public static function getPages(): array
     {
         return [
-            // 'index' => Pages\ListOrderItems::route('/'),
             'index' => Pages\ManageOrderItems::route('/'),
         ];
     }
 
-    // Agar tidak bisa create manual dari menu ini
+    // Nonaktifkan tombol "New Ticket" manual
     public static function canCreate(): bool
     {
         return false;

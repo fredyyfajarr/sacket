@@ -7,8 +7,9 @@ use App\Http\Controllers\TicketScannerController;
 use App\Http\Controllers\PromoCodeController;
 use App\Http\Controllers\Admin\EventController as AdminEventController;
 
-
+// Helper untuk redirect admin login ke login biasa
 Route::get('/admin/login', fn()=> redirect('/login'))->name('filament.admin.auth.login');
+
 /*
 |--------------------------------------------------------------------------
 | Rute Publik (Bisa diakses siapa saja)
@@ -23,7 +24,14 @@ Route::get('/events/{event:slug}', [EventController::class, 'show'])->name('even
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth'])->group(function () {
-    // Rute "My Tickets"
+
+    // [PENTING] Rute Dashboard User
+    // Ini akan memanggil file view 'resources/views/dashboard.blade.php'
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->name('dashboard');
+
+    // Rute "My Tickets" (Opsional, karena sudah ada di dashboard, tapi baik untuk direct link)
     Route::get('/my-tickets', [OrderController::class, 'index'])->name('orders.index');
     Route::get('/my-tickets/{order}', [OrderController::class, 'show'])->name('orders.show');
     Route::get('/my-tickets/{orderItem}/download', [OrderController::class, 'downloadTicket'])->name('orders.download');
@@ -46,10 +54,8 @@ Route::prefix('admin')
     ->name('admin.')
     ->middleware(['auth', 'role:admin']) // Hanya 'admin' yang boleh masuk ke sini
     ->group(function () {
-        // Redirect dashboard ke halaman utama panel admin
+        // Redirect URL /admin/dashboard agar lari ke panel utama admin (/admin)
         Route::get('/dashboard', fn () => redirect('/admin'))->name('dashboard');
-
-        // Catatan: Rute /admin/scanner dipindahkan keluar dari grup ini
     });
 
 
@@ -58,13 +64,12 @@ Route::prefix('admin')
 | Rute Khusus Scanner (Untuk role 'admin' DAN 'scanner')
 |--------------------------------------------------------------------------
 */
-// Rute ini sengaja diletakkan di luar grup /admin agar bisa diakses dengan URL yang lebih sederhana
 Route::get('/scanner', [TicketScannerController::class, 'index'])
-    ->middleware(['auth', 'role:admin|scanner']) // Bisa diakses admin ATAU scanner
+    ->middleware(['auth', 'role:admin|scanner'])
     ->name('scanner.index');
 
 Route::post('/ticket/verify', [TicketScannerController::class, 'verify'])
-    ->middleware(['auth', 'role:admin|scanner']) // Bisa diakses admin ATAU scanner
+    ->middleware(['auth', 'role:admin|scanner'])
     ->name('ticket.verify');
 
 
