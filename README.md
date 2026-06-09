@@ -18,4 +18,5 @@ A robust backend and administrative web application tailored for ticketing and s
 - **Utilities**: `simplesoftwareio/simple-qrcode`, `barryvdh/laravel-dompdf`, `pxlrbt/filament-excel`
 - **Authentication**: Laravel Breeze, Laravel Sanctum
 
-Copyright build dari nama saya Fredy Fajar Adi Putra
+Copyright &copy; 2026 Fredy Fajar Adi Putra. All Rights Reserved.
+
